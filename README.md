@@ -139,7 +139,7 @@ Main apps (names based on this project):
 ## 🛠 Requirements
 
 - Python **3.10+** (recommended)
-- pip / venv
+- pip install uv
 - A database:
   - SQLite (default dev)
   - Or MySQL/PostgreSQL (with appropriate drivers)
@@ -152,5 +152,5 @@ Main apps (names based on this project):
 1. **Clone the repo**
 
 ```bash
-git clone <your-repo-url> money-manager
+git clone https://github.com/Arif-Shafwan/money-manager.git
 cd money-manager
