@@ -1,0 +1,217 @@
+{% extends "budget_core/layout/layout.html" %}
+{% load money_tags %}
+{% block title %}Transactions — Money Manager{% endblock %}
+{% block content %}
+
+<!-- Header -->
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+  <div>
+    <h1 class="text-2xl font-semibold">Transactions</h1>
+    <p class="text-xs text-[var(--muted)] mt-1">
+      View and manage your transactions grouped by month.
+    </p>
+  </div>
+  <div class="flex sm:justify-end">
+    <a href="{% url 'transaction_create' %}"
+       class="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-emerald-500 text-black font-semibold text-sm shadow-sm hover:bg-emerald-400 transition">
+      + Add Transaction
+    </a>
+  </div>
+</div>
+
+<!-- Filters -->
+<form method="get" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+  <input
+    name="q"
+    value="{{ q }}"
+    placeholder="Search note or category"
+    class="p-2 text-sm bg-[var(--input)] border border-[var(--border)] text-[var(--fg)] rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
+  />
+
+  <select
+    name="account"
+    class="p-2 text-sm bg-[var(--input)] border border-[var(--border)] text-[var(--fg)] rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
+  >
+    <option value="">All accounts</option>
+    {% for a in accounts %}
+      <option value="{{ a.id }}" {% if account_id|default:'' == a.id|stringformat:'s' %}selected{% endif %}>
+        {{ a.name }}
+      </option>
+    {% endfor %}
+  </select>
+
+  <button
+    class="px-4 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] hover:bg-black/5 dark:hover:bg-white/5 transition"
+  >
+    Apply Filter
+  </button>
+</form>
+
+<!-- Table wrapper -->
+<div class="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)]">
+  <table class="min-w-full text-xs sm:text-sm">
+    <thead class="text-[var(--muted)] bg-black/5 dark:bg-white/5">
+      <tr class="border-b border-[var(--border)]">
+        <th class="p-2 text-left whitespace-nowrap">Date</th>
+        <th class="p-2 text-left whitespace-nowrap hidden sm:table-cell">Account</th>
+        <th class="p-2 text-left whitespace-nowrap">Category</th>
+        <th class="p-2 text-right whitespace-nowrap">Amount (RM)</th>
+        <th class="p-2 text-center whitespace-nowrap hidden md:table-cell">Type</th>
+        <th class="p-2 text-left hidden md:table-cell">Note</th>
+        <th class="p-2 text-center whitespace-nowrap">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% if months %}
+      {% for m in months %}
+        <!-- Month header row -->
+        <tr class="border-b border-[var(--border)] bg-black/5/40 dark:bg-white/5/40">
+          <td colspan="7" class="p-2">
+            <button
+              type="button"
+              class="w-full flex items-center justify-between text-left text-xs sm:text-sm font-semibold text-[var(--fg)]"
+              onclick="toggleMonth('{{ m.key }}')"
+            >
+              <span class="flex items-center gap-2">
+                <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 text-xs">
+                  {{ forloop.counter }}
+                </span>
+                {{ m.label }}
+              </span>
+              <span class="inline-flex items-center gap-1 text-[var(--muted)] text-xs">
+                <span id="icon-{{ m.key }}">▼</span>
+                <span>Toggle</span>
+              </span>
+            </button>
+          </td>
+        </tr>
+
+        <!-- Rows for that month (collapsed by default) -->
+        {% for t in m.tx_list %}
+          <tr
+            class="border-b border-[var(--border)] hover:bg-black/5 dark:hover:bg-white/5 transition month-row hidden"
+            data-month="{{ m.key }}"
+          >
+            <td class="p-2 align-top whitespace-nowrap">
+              {{ t.date }}
+            </td>
+            <td class="p-2 align-top hidden sm:table-cell">
+              {{ t.account.name }}
+            </td>
+            <td class="p-2 align-top">
+              {{ t.category.name }}
+            </td>
+            <td class="p-2 align-top text-right whitespace-nowrap font-medium">
+              {{ t.amount|floatformat:2 }}
+            </td>
+            <td class="p-2 align-top text-center hidden md:table-cell">
+              <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] sm:text-xs
+                           {% if t.type == 'income' %}
+                             bg-emerald-500/10 text-emerald-600
+                           {% else %}
+                             bg-rose-500/10 text-rose-600
+                           {% endif %}">
+                {{ t.type|title }}
+              </span>
+            </td>
+            <td class="p-2 align-top hidden md:table-cell max-w-xs truncate">
+              {{ t.note }}
+            </td>
+            <td class="p-2 align-top text-center whitespace-nowrap">
+              <a
+                href="{% url 'transaction_edit' t.id %}"
+                class="text-xs sm:text-sm text-sky-500 hover:text-sky-400"
+              >
+                Edit
+              </a>
+              <a
+                href="{% url 'transaction_delete' t.id %}"
+                class="ml-2 text-xs sm:text-sm text-rose-500 hover:text-rose-400"
+              >
+                Delete
+              </a>
+            </td>
+          </tr>
+        {% endfor %}
+      {% endfor %}
+    {% else %}
+      <tr>
+        <td colspan="7" class="p-4 text-center text-[var(--muted)]">
+          No transactions yet.
+        </td>
+      </tr>
+    {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+  function toggleMonth(key) {
+    const rows = document.querySelectorAll('[data-month="' + key + '"]');
+    const icon = document.getElementById('icon-' + key);
+    let anyVisible = false;
+
+    rows.forEach(row => {
+      if (!row.classList.contains('hidden')) {
+        anyVisible = true;
+      }
+    });
+
+    // If any visible, hide all; else show all
+    rows.forEach(row => {
+      if (anyVisible) {
+        row.classList.add('hidden');
+      } else {
+        row.classList.remove('hidden');
+      }
+    });
+
+    if (icon) {
+      icon.textContent = anyVisible ? '▶' : '▼';
+    }
+  }
+</script>
+
+{% endblock %}
+
+
+views.py
+@login_required
+def transaction_list(request):
+    q = (request.GET.get("q") or "").strip()
+    account_id = (request.GET.get("account") or "").strip()
+
+    tx = Transaction.objects.filter(user=request.user).select_related("account", "category")
+
+    if q:
+        tx = tx.filter(
+            Q(note__icontains=q) |
+            Q(category__name__icontains=q)
+        )
+
+    if account_id:
+        tx = tx.filter(account_id=account_id)
+
+    # order by date desc so grouping works in order
+    tx = tx.order_by("-date", "-id")
+
+    # Group by month (YYYY-MM)
+    months = []
+    for key, group in groupby(tx, key=lambda t: t.date.strftime("%Y-%m")):
+        group_list = list(group)
+        label = group_list[0].date.strftime("%B %Y")  # e.g. "January 2025"
+        months.append({
+            "key": key,          # used in data attribute
+            "label": label,      # display
+            "tx_list": group_list,
+        })
+
+    accounts = Account.objects.filter(user=request.user).order_by("name")
+
+    context = {
+        "months": months,
+        "accounts": accounts,
+        "q": q,
+        "account_id": account_id,
+    }
+    return render(request, "budget_management/transactions/transaction_list.html", context)

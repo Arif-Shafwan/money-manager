@@ -1,0 +1,285 @@
+{% extends "budget_core/layout/layout.html" %}
+{% load money_tags %}
+{% block title %}Transactions — Money Manager{% endblock %}
+{% block content %}
+
+<!-- Header -->
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+  <div>
+    <h1 class="text-2xl font-semibold">Transactions</h1>
+    <p class="text-xs text-[var(--muted)] mt-1">
+      View and manage your transactions grouped by month.
+    </p>
+  </div>
+  <div class="flex sm:justify-end">
+    <a href="{% url 'transaction_create' %}"
+       class="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-emerald-500 text-black font-semibold text-sm shadow-sm hover:bg-emerald-400 transition">
+      + Add Transaction
+    </a>
+  </div>
+</div>
+
+<!-- Filters (with Year) -->
+<form method="get" class="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
+  <!-- Search -->
+  <input
+    name="q"
+    value="{{ q }}"
+    placeholder="Search note or category"
+    class="p-2 text-sm bg-[var(--input)] border border-[var(--border)] text-[var(--fg)] rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
+  />
+
+  <!-- Account -->
+  <select
+    name="account"
+    class="p-2 text-sm bg-[var(--input)] border border-[var(--border)] text-[var(--fg)] rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
+  >
+    <option value="">All accounts</option>
+    {% for a in accounts %}
+      <option value="{{ a.id }}" {% if account_id|default:'' == a.id|stringformat:'s' %}selected{% endif %}>
+        {{ a.name }}
+      </option>
+    {% endfor %}
+  </select>
+
+  <!-- Year -->
+  <select
+    name="year"
+    class="p-2 text-sm bg-[var(--input)] border border-[var(--border)] text-[var(--fg)] rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
+  >
+    <option value="">All years</option>
+    {% for y in years %}
+      <option value="{{ y }}" {% if year == y|stringformat:'s' %}selected{% endif %}>
+        {{ y }}
+      </option>
+    {% endfor %}
+  </select>
+
+  <!-- Filter button -->
+  <button
+    class="px-4 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] hover:bg-black/5 dark:hover:bg-white/5 transition"
+  >
+    Apply Filter
+  </button>
+</form>
+
+<!-- Table wrapper -->
+<div class="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)]">
+  <table class="min-w-full text-xs sm:text-sm">
+    <thead class="text-[var(--muted)] bg-black/5 dark:bg-white/5">
+      <tr class="border-b border-[var(--border)]">
+        <th class="p-2 text-left whitespace-nowrap">Date</th>
+        <th class="p-2 text-left whitespace-nowrap hidden sm:table-cell">Account</th>
+        <th class="p-2 text-left whitespace-nowrap">Category</th>
+        <th class="p-2 text-right whitespace-nowrap">Amount (RM)</th>
+        <th class="p-2 text-center whitespace-nowrap hidden md:table-cell">Type</th>
+        <th class="p-2 text-left hidden md:table-cell">Note</th>
+        <th class="p-2 text-center whitespace-nowrap">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% if months %}
+      {% for m in months %}
+        <!-- Month header row -->
+        <tr class="border-b border-[var(--border)] bg-black/5/40 dark:bg-white/5/40">
+          <td colspan="7" class="p-2">
+            <button
+              type="button"
+              class="w-full flex items-center justify-between text-left text-xs sm:text-sm font-semibold text-[var(--fg)]"
+              onclick="toggleMonth('{{ m.key }}')"
+            >
+              <span class="flex items-center gap-2">
+                <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 text-xs">
+                  {{ forloop.counter }}
+                </span>
+                {{ m.label }}
+              </span>
+              <span class="inline-flex items-center gap-1 text-[var(--muted)] text-xs">
+                <span id="icon-{{ m.key }}">▼</span>
+                <span>Toggle</span>
+              </span>
+            </button>
+          </td>
+        </tr>
+
+        <!-- Rows for that month (collapsed by default) -->
+        {% for t in m.tx_list %}
+          <!-- Main row -->
+          <tr
+            class="border-b border-[var(--border)] hover:bg-black/5 dark:hover:bg-white/5 transition month-row hidden"
+            data-month="{{ m.key }}"
+          >
+            <!-- Date -->
+            <td class="p-2 align-top whitespace-nowrap">
+              {{ t.date }}
+            </td>
+
+            <!-- Account (hidden on very small screens) -->
+            <td class="p-2 align-top hidden sm:table-cell">
+              {{ t.account.name }}
+            </td>
+
+            <!-- Category -->
+            <td class="p-2 align-top">
+              {{ t.category.name }}
+            </td>
+
+            <!-- Amount -->
+            <td class="p-2 align-top text-right whitespace-nowrap font-medium">
+              {{ t.amount|floatformat:2 }}
+            </td>
+
+            <!-- Type (desktop) -->
+            <td class="p-2 align-top text-center hidden md:table-cell">
+              <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] sm:text-xs
+                           {% if t.type == 'income' %}
+                             bg-emerald-500/10 text-emerald-600
+                           {% else %}
+                             bg-rose-500/10 text-rose-600
+                           {% endif %}">
+                {{ t.type|title }}
+              </span>
+            </td>
+
+            <!-- Note (desktop) -->
+            <td class="p-2 align-top hidden md:table-cell max-w-xs truncate">
+              {{ t.note }}
+            </td>
+
+            <!-- Actions -->
+            <td class="p-2 align-top text-center whitespace-nowrap">
+              <div class="flex items-center justify-center gap-2">
+                <!-- Desktop: edit/delete as usual -->
+                <a
+                  href="{% url 'transaction_edit' t.id %}"
+                  class="hidden md:inline text-xs sm:text-sm text-sky-500 hover:text-sky-400"
+                >
+                  Edit
+                </a>
+                <a
+                  href="{% url 'transaction_delete' t.id %}"
+                  class="hidden md:inline text-xs sm:text-sm text-rose-500 hover:text-rose-400"
+                >
+                  Delete
+                </a>
+
+                <!-- Mobile: View dropdown -->
+                <button
+                  type="button"
+                  class="inline-flex md:hidden items-center px-2 py-1 rounded-full border border-[var(--border)] bg-[var(--bg)] text-[10px] font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                  onclick="toggleTxDetails({{ t.id }})"
+                >
+                  View
+                </button>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Detail row (mobile only) -->
+          <tr
+            id="tx-detail-{{ t.id }}"
+            class="hidden md:hidden month-row-details"
+            data-month="{{ m.key }}"
+          >
+            <td colspan="7" class="p-2 bg-black/5 dark:bg-white/5">
+              <div class="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3 text-xs space-y-1">
+                <div class="flex justify-between gap-2">
+                  <span class="font-semibold">Date:</span>
+                  <span>{{ t.date }}</span>
+                </div>
+                <div class="flex justify-between gap-2">
+                  <span class="font-semibold">Account:</span>
+                  <span>{{ t.account.name }}</span>
+                </div>
+                <div class="flex justify-between gap-2">
+                  <span class="font-semibold">Category:</span>
+                  <span>{{ t.category.name }}</span>
+                </div>
+                <div class="flex justify-between gap-2">
+                  <span class="font-semibold">Amount:</span>
+                  <span>RM {{ t.amount|floatformat:2 }}</span>
+                </div>
+                <div class="flex justify-between gap-2">
+                  <span class="font-semibold">Type:</span>
+                  <span class="{% if t.type == 'income' %}text-emerald-500{% else %}text-rose-500{% endif %}">
+                    {{ t.type|title }}
+                  </span>
+                </div>
+                {% if t.note %}
+                  <div class="pt-1 border-t border-dashed border-[var(--border)] mt-1">
+                    <span class="font-semibold">Note:</span>
+                    <p class="mt-1 text-[var(--muted)]">
+                      {{ t.note }}
+                    </p>
+                  </div>
+                {% endif %}
+
+                <!-- Edit/Delete links for mobile inside detail -->
+                <div class="flex justify-end gap-3 pt-2 border-t border-[var(--border)] mt-2">
+                  <a
+                    href="{% url 'transaction_edit' t.id %}"
+                    class="text-xs text-sky-500 hover:text-sky-400"
+                  >
+                    Edit
+                  </a>
+                  <a
+                    href="{% url 'transaction_delete' t.id %}"
+                    class="text-xs text-rose-500 hover:text-rose-400"
+                  >
+                    Delete
+                  </a>
+                </div>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      {% endfor %}
+    {% else %}
+      <tr>
+        <td colspan="7" class="p-4 text-center text-[var(--muted)]">
+          No transactions yet.
+        </td>
+      </tr>
+    {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+  function toggleMonth(key) {
+    const rows  = document.querySelectorAll('[data-month="' + key + '"].month-row');
+    const drows = document.querySelectorAll('[data-month="' + key + '"].month-row-details');
+    const icon = document.getElementById('icon-' + key);
+    let anyVisible = false;
+
+    rows.forEach(row => {
+      if (!row.classList.contains('hidden')) {
+        anyVisible = true;
+      }
+    });
+
+    // If any visible, hide all month rows + their details; else show main rows (details remain collapsed)
+    rows.forEach(row => {
+      if (anyVisible) {
+        row.classList.add('hidden');
+      } else {
+        row.classList.remove('hidden');
+      }
+    });
+    drows.forEach(row => {
+      row.classList.add('hidden');
+    });
+
+    if (icon) {
+      icon.textContent = anyVisible ? '▶' : '▼';
+    }
+  }
+
+  function toggleTxDetails(id) {
+    const row = document.getElementById('tx-detail-' + id);
+    if (!row) return;
+    row.classList.toggle('hidden');
+  }
+</script>
+
+{% endblock %}

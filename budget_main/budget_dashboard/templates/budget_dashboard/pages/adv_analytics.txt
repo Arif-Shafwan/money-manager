@@ -1,0 +1,264 @@
+{% extends "budget_core/layout/layout.html" %}
+{% load static %}
+{% block title %}Advanced Analytics — Money Manager{% endblock %}
+{% block content %}
+
+<div class="max-w-6xl mx-auto">
+  <!-- Header & controls -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+    <div>
+      <h1 class="text-2xl font-semibold">Advanced Analytics</h1>
+      <p class="mt-1 text-xs sm:text-sm text-[var(--muted)]">
+        Machine learning–based forecast of your daily expenses.
+      </p>
+    </div>
+
+    <form method="get" class="flex items-center gap-2 text-xs sm:text-sm">
+      <label for="months" class="text-[var(--muted)]">History window:</label>
+      <select
+        id="months"
+        name="months"
+        class="p-1.5 bg-[var(--input)] border border-[var(--border)] text-[var(--fg)] rounded-lg text-xs sm:text-sm"
+        onchange="this.form.submit()"
+      >
+        <option value="3" {% if months == 3 %}selected{% endif %}>Last 3 months</option>
+        <option value="6" {% if months == 6 %}selected{% endif %}>Last 6 months</option>
+        <option value="12" {% if months == 12 %}selected{% endif %}>Last 12 months</option>
+      </select>
+    </form>
+  </div>
+
+  {% if not has_data %}
+    <div class="rounded-2xl p-4 sm:p-6 bg-[var(--card)] border border-[var(--border)] text-sm text-[var(--muted)]">
+      Not enough expense history to build a prediction yet. Start adding transactions and check back later.
+    </div>
+  {% else %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+      <!-- Metric card -->
+      <div class="rounded-2xl p-4 bg-[var(--card)] border border-[var(--border)] shadow-sm">
+        <p class="text-xs font-medium text-[var(--muted)] mb-1">
+          Model Accuracy (Test RMSE)
+        </p>
+        {% if rmse %}
+          <p class="text-2xl font-semibold">RM {{ rmse|floatformat:2 }}</p>
+          <p class="mt-1 text-xs text-[var(--muted)]">
+            Lower is better. Based on the last 20% of your expense history.
+          </p>
+        {% else %}
+          <p class="text-sm text-[var(--muted)]">
+            Not enough data to calculate RMSE yet. Using all data for training.
+          </p>
+        {% endif %}
+      </div>
+
+      <!-- Simple summary -->
+      <div class="rounded-2xl p-4 bg-[var(--card)] border border-[var(--border)] shadow-sm lg:col-span-2">
+        <p class="text-xs font-medium text-[var(--muted)] mb-1">
+          Next 30 days forecast
+        </p>
+        <p class="text-sm">
+          The chart below shows your recent daily expenses (solid) and the
+          machine learning forecast for the next 30 days (dashed).
+        </p>
+      </div>
+    </div>
+
+    <!-- Chart card -->
+    <div class="rounded-2xl p-4 sm:p-6 bg-[var(--card)] border border-[var(--border)] shadow-2xl">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-semibold text-sm sm:text-base">
+          Daily Expenses: History & 30-Day Forecast
+        </h2>
+      </div>
+      <div class="w-full h-72 sm:h-80">
+        <canvas id="advancedExpenseChart"></canvas>
+      </div>
+    </div>
+
+    <!-- JSON data for JS -->
+    {{ hist_labels|json_script:"hist-labels" }}
+    {{ hist_values|json_script:"hist-values" }}
+    {{ future_labels|json_script:"future-labels" }}
+    {{ future_values|json_script:"future-values" }}
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        const histLabels = JSON.parse(document.getElementById('hist-labels').textContent || '[]');
+        const histValues = JSON.parse(document.getElementById('hist-values').textContent || '[]');
+        const futureLabels = JSON.parse(document.getElementById('future-labels').textContent || '[]');
+        const futureValues = JSON.parse(document.getElementById('future-values').textContent || '[]');
+
+        const ctx = document.getElementById('advancedExpenseChart');
+        if (!ctx) return;
+
+        // Merge labels & data: we want one continuous line
+        const allLabels = histLabels.concat(futureLabels);
+        const allValues = histValues.concat(futureValues);
+
+        // Index where forecast starts (used for styling points)
+        const forecastStartIndex = histLabels.length;
+
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: allLabels,
+            datasets: [
+              {
+                label: 'Expenses (RM)',
+                data: allValues,
+                tension: 0.35,
+                fill: false,
+                borderWidth: 2,
+                borderColor: '#10b981', // you can let Chart.js pick default if you prefer
+                pointRadius: 0,
+                segment: {
+                  borderDash: ctx => ctx.p0DataIndex >= forecastStartIndex ? [6, 4] : undefined
+                }
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: function (ctx) {
+                    const v = ctx.raw || 0;
+                    return 'RM ' + Number(v).toFixed(2);
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                ticks: { maxRotation: 45, minRotation: 0 },
+                grid: { display: false }
+              },
+              y: {
+                beginAtZero: true,
+                title: { display: true, text: 'Amount (RM)' }
+              }
+            }
+          }
+        });
+      });
+    </script>
+
+  {% endif %}
+</div>
+
+{% endblock %}
+
+
+views.py
+@login_required
+def advanced_analytics(request):
+    """
+    Advanced Analytics: uses simple ML (Linear Regression) on
+    daily expenses to predict the next 30 days.
+    """
+
+    user = request.user
+
+    # How many months of history to use (default 6, can override via ?months=3)
+    try:
+        months = int(request.GET.get("months", 6))
+    except ValueError:
+        months = 6
+
+    today = date.today()
+    start_date = today - timedelta(days=30 * months)
+
+    # 1) Aggregate daily expenses for this user
+    qs = (
+        Transaction.objects
+        .filter(user=user, type="expense", date__gte=start_date, date__lte=today)
+        .values("date")
+        .annotate(total=Sum("amount"))
+        .order_by("date")
+    )
+
+    if not qs:
+        # No data → show empty state
+        context = {
+            "has_data": False,
+            "months": months,
+        }
+        return render(request, "budget_dashboard/pages/advanced_analytics.html", context)
+
+    # Convert to DataFrame
+    df = pd.DataFrame(list(qs))
+    # Ensure proper dtype
+    df["date"] = pd.to_datetime(df["date"])
+    df["total"] = df["total"].astype(float)
+
+    # Create a simple time index: 0, 1, 2, ..., n-1
+    df = df.sort_values("date")
+    df["day_index"] = range(len(df))
+
+    # 2) Train-test split (last 20% as test)
+    n = len(df)
+    if n < 10:
+        # Not enough data to split → just use all for training
+        train_df = df.copy()
+        test_df = None
+    else:
+        split_idx = int(n * 0.8)
+        train_df = df.iloc[:split_idx].copy()
+        test_df = df.iloc[split_idx:].copy()
+
+    X_train = train_df[["day_index"]].values
+    y_train = train_df["total"].values
+
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+
+    # Evaluate on test set if available
+    rmse = None
+    if test_df is not None and len(test_df) > 0:
+        X_test = test_df[["day_index"]].values
+        y_test = test_df["total"].values
+        y_pred_test = model.predict(X_test)
+
+        # Older sklearn doesn't support squared=False, so compute RMSE manually
+        mse = mean_squared_error(y_test, y_pred_test)
+        rmse = float(sqrt(mse))
+
+
+    # 3) Predict next 30 days
+    last_index = int(df["day_index"].max())
+    future_indices = list(range(last_index + 1, last_index + 31))
+    future_dates = [today + timedelta(days=i) for i in range(1, 31)]
+
+    X_future = pd.DataFrame({"day_index": future_indices})[["day_index"]].values
+    future_pred = model.predict(X_future)
+
+    # Clip negatives to 0 (no negative expenses)
+    future_pred = [max(0.0, float(v)) for v in future_pred]
+
+    # 4) Prepare data for Chart.js
+    hist_labels = [d.strftime("%Y-%m-%d") for d in df["date"]]
+    hist_values = [float(v) for v in df["total"]]
+
+    future_labels = [d.strftime("%Y-%m-%d") for d in future_dates]
+    future_values = future_pred
+
+    context = {
+        "has_data": True,
+        "months": months,
+        "rmse": rmse,
+
+        # Actual data
+        "hist_labels": hist_labels,
+        "hist_values": hist_values,
+
+        # Future predictions
+        "future_labels": future_labels,
+        "future_values": future_values,
+    }
+    return render(request, "budget_dashboard/pages/advanced_analytics.html", context)

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en" class="min-h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Money Manager{% endblock %}</title>
+  <link rel="icon" type="image/png" href="{% static 'favicon.ico/money-16.png' %}">
+
+  <!-- Tailwind (dark mode via class) -->
+  <script>
+    window.tailwind = { config: { darkMode: 'class' } }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Global color tokens -->
+  <style>
+    :root{
+      /* Light theme */
+      --bg:       #ffffff;   /* page background */
+      --fg:       #0f172a;   /* text color (slate-900) */
+      --muted:    #6b7280;   /* secondary text */
+      --card:     #f8fafc;   /* card bg (slate-50) */
+      --border:   #e2e8f0;   /* borders (slate-200) */
+      --input:    #ffffff;   /* inputs */
+      --axis:     #334155;   /* charts axis (slate-700) */
+      --grid:     rgba(148,163,184,.30); /* charts grid */
+    }
+    .dark{
+      /* Dark theme */
+      --bg:       #0b1220;   /* deep navy */
+      --fg:       #e5e7eb;   /* slate-200 */
+      --muted:    #9ca3af;   /* slate-400 */
+      --card:     #0f172a;   /* slate-900 */
+      --border:   #1f2937;   /* slate-800 */
+      --input:    #020617;   /* inputs */
+      --axis:     #cbd5e1;   /* slate-300 */
+      --grid:     rgba(148,163,184,.20); /* charts grid */
+    }
+    .logo-m-outline {
+      /* Stroke (outline) around the letter */
+      -webkit-text-stroke: 1px #047a4ba9;
+      text-stroke: 1px #6ee7b7;
+    }
+    .logo-icon-m-outline {
+      border-radius: 0.5rem;
+      background-color: #10b981;
+      padding: 3px;
+    }
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    /* Hide scrollbar for IE, Edge and Firefox */
+    .no-scrollbar {
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;  /* Firefox */
+    }
+
+  </style>
+
+  <script>
+    // apply saved theme early
+    (function(){
+      const saved = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const isDark = saved ? saved === 'dark' : prefersDark;
+      document.documentElement.classList.toggle('dark', isDark);
+    })();
+    function toggleTheme(){
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    }
+  </script>
+
+  <!-- helper available BEFORE content scripts run -->
+  <script>
+    window.themeVars = function(){
+      const s = getComputedStyle(document.documentElement);
+      return {
+        axis: s.getPropertyValue('--axis').trim(),
+        grid: s.getPropertyValue('--grid').trim()
+      };
+    };
+  </script>
+</head>
+<body class="min-h-screen flex flex-col bg-[var(--bg)] text-[var(--fg)]">
+  <!-- HEADER -->
+  <header class="border-b border-[var(--border)] bg-[var(--bg)]/80 backdrop-blur">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
+      <!-- Logo -->
+      <a href="{% url 'dashboard' %}"
+         class="inline-flex items-center gap-2 font-semibold tracking-tight">
+        <img
+          src="{% static 'favicon.ico/money-128.png' %}"
+          alt="Money Manager"
+          class="w-9 h-9 sm:w-10 sm:h-10 inline-block shadow-sm logo-icon-m-outline"
+        >
+        <span class="text-sm sm:text-base">
+          <span class="text-emerald-300 text-lg sm:text-xl font-extrabold logo-m-outline">
+            M</span>oney
+          <span class="text-emerald-300 text-lg sm:text-xl font-extrabold logo-m-outline">
+            M</span>anager
+        </span>
+      </a>
+
+      <!-- Desktop nav -->
+      <nav class="hidden md:flex items-center gap-4 text-sm text-[var(--muted)]">
+        {% if user.is_authenticated %}
+          <a href="{% url "dashboard" %}" class="hover:text-[var(--fg)]">Dashboard</a>
+          <a href="{% url 'advanced_analytics' %}" class="hover:text-[var(--fg)]">Advanced Analytics</a>
+          <a href="{% url "transactions" %}" class="hover:text-[var(--fg)]">Transactions</a>
+          <a href="{% url "budgets" %}" class="hover:text-[var(--fg)]">Budgets</a>
+          <a href="{% url "categories" %}" class="hover:text-[var(--fg)]">Categories</a>
+          <a href="{% url "accounts" %}" class="hover:text-[var(--fg)]">Accounts</a>
+          <a href="{% url "logout" %}" class="text-rose-600 dark:text-rose-300 hover:underline">
+            Logout
+          </a>
+        {% else %}
+          <a href="{% url "login" %}" class="hover:text-[var(--fg)]">Login</a>
+          <a href="{% url "signup" %}" class="hover:text-[var(--fg)]">Sign up</a>
+        {% endif %}
+        <button type="button" onclick="toggleTheme()"
+          class="ml-2 px-2 py-1 rounded border border-[var(--border)] text-xs sm:text-sm text-[var(--fg)] hover:bg-black/5 dark:hover:bg-white/5">
+          <span class="inline dark:hidden">☾ Dark</span>
+          <span class="hidden dark:inline">☀︎ Light</span>
+        </button>
+      </nav>
+
+      <!-- Mobile controls -->
+      <div class="flex items-center gap-2 md:hidden">
+        <button type="button" onclick="toggleTheme()"
+          class="px-2 py-1 rounded border border-[var(--border)] text-xs text-[var(--fg)] hover:bg-black/5 dark:hover:bg-white/5">
+          <span class="inline dark:hidden">☾</span>
+          <span class="hidden dark:inline">☀︎</span>
+        </button>
+        <button type="button"
+                class="p-2 rounded border border-[var(--border)] text-[var(--fg)]"
+                aria-label="Toggle navigation"
+                onclick="document.getElementById('mobile-nav').classList.toggle('hidden')">
+          <!-- simple hamburger icon -->
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-width="2" d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile nav -->
+    <div id="mobile-nav" class="md:hidden border-t border-[var(--border)] hidden">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col gap-2 text-sm text-[var(--muted)]">
+        {% if user.is_authenticated %}
+          <a href="{% url "dashboard" %}" class="py-1 hover:text-[var(--fg)]">Dashboard</a>
+          <a href="{% url 'advanced_analytics' %}" class="hover:text-[var(--fg)]">Advanced Analytics</a>
+          <a href="{% url "transactions" %}" class="py-1 hover:text-[var(--fg)]">Transactions</a>
+          <a href="{% url "budgets" %}" class="py-1 hover:text-[var(--fg)]">Budgets</a>
+          <a href="{% url "categories" %}" class="py-1 hover:text-[var(--fg)]">Categories</a>
+          <a href="{% url "accounts" %}" class="py-1 hover:text-[var(--fg)]">Accounts</a>
+          <a href="{% url "logout" %}" class="py-1 text-rose-600 dark:text-rose-300 hover:underline">
+            Logout
+          </a>
+        {% else %}
+          <a href="{% url "login" %}" class="py-1 hover:text-[var(--fg)]">Login</a>
+          <a href="{% url "signup" %}" class="py-1 hover:text-[var(--fg)]">Sign up</a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main class="max-w-6xl mx-auto w-full flex-1 px-4 sm:px-6 lg:px-8 py-6">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-[var(--border)] py-6 text-center text-[var(--muted)] mt-4">
+    <p class="text-xs sm:text-sm">
+      &copy; {% now "Y" %} Money Manager. All rights reserved.
+    </p>
+    <p class="mt-1 text-[10px] sm:text-xs">
+      Owned and operated by <span class="font-medium">MobyDeep</span>.
+    </p>
+  </footer>
+
+  <!-- Chart helper (reads CSS vars) -->
+  <script>
+    window.themeVars = function(){
+      const s = getComputedStyle(document.documentElement);
+      return {
+        axis: s.getPropertyValue('--axis').trim(),
+        grid: s.getPropertyValue('--grid').trim()
+      };
+    };
+  </script>
+</body>
+</html>

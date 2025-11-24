@@ -1,0 +1,109 @@
+{% extends "budget_core/layout/layout.html" %}
+{% load money_tags %}
+{% block title %}Transfer — Money Manager{% endblock %}
+{% block content %}
+
+<div class="max-w-3xl mx-auto">
+  <!-- Header -->
+  <div class="mb-4">
+    <h1 class="text-2xl font-semibold">Transfer Between Accounts</h1>
+    <p class="mt-1 text-xs sm:text-sm text-[var(--muted)]">
+      Move money from one account to another and keep your balances accurate.
+    </p>
+  </div>
+
+  <!-- Card -->
+  <div class="rounded-2xl p-4 sm:p-6 bg-[var(--card)] border border-[var(--border)] shadow-sm">
+    <form method="post" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {% csrf_token %}
+
+      <!-- From account -->
+      <div>
+        <label for="from_account" class="block text-xs font-medium mb-1">From account</label>
+        <select
+          id="from_account"
+          name="from_account"
+          class="w-full p-2 text-sm bg-[var(--input)] border border-[var(--border)] text-[var(--fg)] rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          required
+        >
+          <option value="">Select account</option>
+          {% for acc in accounts %}
+            <option value="{{ acc.id }}">{{ acc.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- To account -->
+      <div>
+        <label for="to_account" class="block text-xs font-medium mb-1">To account</label>
+        <select
+          id="to_account"
+          name="to_account"
+          class="w-full p-2 text-sm bg-[var(--input)] border border-[var(--border)] text-[var(--fg)] rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          required
+        >
+          <option value="">Select account</option>
+          {% for acc in accounts %}
+            <option value="{{ acc.id }}">{{ acc.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Amount -->
+      <div>
+        <label for="amount" class="block text-xs font-medium mb-1">Amount (RM)</label>
+        <input
+          type="number"
+          id="amount"
+          name="amount"
+          step="0.01"
+          placeholder="0.00"
+          class="w-full p-2 text-sm bg-[var(--input)] border border-[var(--border)] text-[var(--fg)] rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          required
+        >
+      </div>
+
+      <!-- Date -->
+      <div>
+        <label for="date" class="block text-xs font-medium mb-1">Date</label>
+        <input
+          type="date"
+          id="date"
+          name="date"
+          class="w-full p-2 text-sm bg-[var(--input)] border border-[var(--border)] text-[var(--fg)] rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          required
+        >
+      </div>
+
+      <!-- Note -->
+      <div class="md:col-span-2">
+        <label for="note" class="block text-xs font-medium mb-1">Note</label>
+        <textarea
+          id="note"
+          name="note"
+          rows="2"
+          class="w-full p-2 text-sm bg-[var(--input)] border border-[var(--border)] text-[var(--fg)] rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          placeholder="Optional note (e.g. transfer reason)..."
+        ></textarea>
+      </div>
+
+      <!-- Actions -->
+      <div class="md:col-span-2 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-start mt-2">
+        <button
+          type="submit"
+          class="w-full sm:w-auto px-4 py-2 rounded-lg bg-emerald-500 text-black font-semibold text-sm hover:bg-emerald-400 transition"
+        >
+          Transfer
+        </button>
+        <a
+          href="{% url 'accounts' %}"
+          class="w-full sm:w-auto px-4 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--fg)] text-center hover:bg-black/5 dark:hover:bg-white/5 transition"
+        >
+          Cancel
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

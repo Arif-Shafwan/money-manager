@@ -1,0 +1,679 @@
+{% extends "budget_core/layout/layout.html" %}
+{% load static %}
+{% block title %}Advanced Analytics — Money Manager{% endblock %}
+{% block content %}
+
+<div class="max-w-6xl mx-auto px-2 sm:px-4">
+  <!-- Header & controls -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+    <div>
+      <h1 class="text-xl sm:text-2xl font-semibold">Advanced Analytics</h1>
+      <p class="mt-1 text-xs sm:text-sm text-[var(--muted)]">
+        Machine learning forecasts and spending breakdowns across categories and transaction types.
+      </p>
+    </div>
+
+    <form method="get" class="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+      <label for="months" class="text-[var(--muted)]">History window:</label>
+      <select
+        id="months"
+        name="months"
+        class="p-1.5 bg-[var(--input)] border border-[var(--border)] text-[var(--fg)] rounded-lg text-xs sm:text-sm min-w-[130px]"
+        onchange="this.form.submit()"
+      >
+        <option value="3"  {% if months == 3 %}selected{% endif %}>Last 3 months</option>
+        <option value="6"  {% if months == 6 %}selected{% endif %}>Last 6 months</option>
+        <option value="12" {% if months == 12 %}selected{% endif %}>Last 12 months</option>
+      </select>
+    </form>
+  </div>
+
+  {% if not has_any_data %}
+    <div class="rounded-2xl p-4 sm:p-6 bg-[var(--card)] border border-[var(--border)] text-xs sm:text-sm text-[var(--muted)]">
+      Not enough transaction history to build predictions yet.
+      Add income and expense records, then come back to see forecasts.
+    </div>
+  {% else %}
+
+    <!-- Top metric cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <!-- Current balance -->
+      <div class="rounded-2xl p-4 bg-[var(--card)] border border-[var(--border)] shadow-sm">
+        <p class="text-[11px] sm:text-xs font-medium text-[var(--muted)] mb-1">
+          Current Net Balance
+        </p>
+        <p class="text-xl sm:text-2xl font-semibold">
+          RM {{ current_balance|floatformat:2 }}
+        </p>
+        <p class="mt-1 text-[10px] text-[var(--muted)] leading-snug">
+          Opening balances + all income − all expenses in the last {{ months }} month(s).
+        </p>
+      </div>
+
+      <!-- Next 30 days expense -->
+      <div class="rounded-2xl p-4 bg-[var(--card)] border border-[var(--border)] shadow-sm">
+        <p class="text-[11px] sm:text-xs font-medium text-[var(--muted)] mb-1">
+          Predicted Expenses (Next 30 days)
+        </p>
+        {% if predicted_30d_expense is not None %}
+          <p class="text-xl sm:text-2xl font-semibold text-red-500">
+            RM {{ predicted_30d_expense|floatformat:2 }}
+          </p>
+        {% else %}
+          <p class="text-xs sm:text-sm text-[var(--muted)]">No expense history to predict from.</p>
+        {% endif %}
+        <p class="mt-1 text-[10px] text-[var(--muted)] leading-snug">
+          Based on your recent daily expense pattern.
+        </p>
+      </div>
+
+      <!-- Next 30 days income -->
+      <div class="rounded-2xl p-4 bg-[var(--card)] border border-[var(--border)] shadow-sm">
+        <p class="text-[11px] sm:text-xs font-medium text-[var(--muted)] mb-1">
+          Predicted Income (Next 30 days)
+        </p>
+        {% if predicted_30d_income is not None %}
+          <p class="text-xl sm:text-2xl font-semibold text-emerald-500">
+            RM {{ predicted_30d_income|floatformat:2 }}
+          </p>
+        {% else %}
+          <p class="text-xs sm:text-sm text-[var(--muted)]">No income history to predict from.</p>
+        {% endif %}
+        <p class="mt-1 text-[10px] text-[var(--muted)] leading-snug">
+          Based on your recent daily income pattern.
+        </p>
+      </div>
+
+      <!-- Expected balance in 30 days -->
+      <div class="rounded-2xl p-4 bg-[var(--card)] border border-[var(--border)] shadow-sm">
+        <p class="text-[11px] sm:text-xs font-medium text-[var(--muted)] mb-1">
+          Expected Balance in 30 Days
+        </p>
+        {% if expected_balance_30 is not None %}
+          <p class="text-xl sm:text-2xl font-semibold">
+            RM {{ expected_balance_30|floatformat:2 }}
+          </p>
+          {% if net_30 %}
+            <p class="mt-1 text-[10px] text-[var(--muted)] leading-snug">
+              Net 30-day cash flow:
+              <span class="{% if net_30 >= 0 %}text-emerald-500{% else %}text-red-500{% endif %}">
+                RM {{ net_30|floatformat:2 }}
+              </span>
+            </p>
+          {% endif %}
+        {% else %}
+          <p class="text-xs sm:text-sm text-[var(--muted)]">
+            Need at least one forecast (income or expense) to estimate balance.
+          </p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Insights + model quality -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+      <!-- Insights text -->
+      <div class="lg:col-span-2 rounded-2xl p-4 sm:p-5 bg-[var(--card)] border border-[var(--border)] shadow-sm">
+        <h2 class="font-semibold text-sm sm:text-base mb-2">AI Insights</h2>
+        <div class="space-y-1.5 text-xs sm:text-sm text-[var(--muted)]">
+          {% if predicted_30d_expense is not None or predicted_30d_income is not None %}
+            <p>
+              • Over the next <strong>30 days</strong>, you are likely to
+              {% if predicted_30d_expense is not None %}
+                spend about <strong>RM {{ predicted_30d_expense|floatformat:2 }}</strong>
+              {% endif %}
+              {% if predicted_30d_income is not None %}
+                {% if predicted_30d_expense is not None %} and {% endif %}
+                receive about <strong>RM {{ predicted_30d_income|floatformat:2 }}</strong> in income.
+              {% else %}
+                .
+              {% endif %}
+            </p>
+          {% endif %}
+
+          {% if expected_balance_30 is not None %}
+            <p>
+              • If your behavior stays similar to the last {{ months }} month(s),
+              your projected balance in 30 days is
+              <strong>RM {{ expected_balance_30|floatformat:2 }}</strong>.
+            </p>
+          {% endif %}
+
+          {% if rec_budget is not None and saved_if_reduce_10 is not None %}
+            <p>
+              • If you cap your total spending to about
+              <strong>RM {{ rec_budget|floatformat:2 }}</strong>
+              (10% below the forecast), you could save roughly
+              <strong>RM {{ saved_if_reduce_10|floatformat:2 }}</strong>
+              over the next month.
+            </p>
+          {% endif %}
+
+          {% if top_categories %}
+            {% with top=top_categories %}
+              <p class="mt-2">
+                • Your highest spending categories recently are:
+                <strong>
+                  {% for row in top %}
+                    {{ row.category__name|default:"Uncategorised" }}{% if not forloop.last %},{% endif %}
+                  {% endfor %}
+                </strong>.
+                Review these categories to see which ones are
+                <span class="font-semibold">non-essential</span> (e.g. entertainment, shopping, eating out)
+                and consider setting stricter budgets there.
+              </p>
+            {% endwith %}
+          {% endif %}
+
+          <p class="mt-2 text-[10px] sm:text-xs leading-snug">
+            This analysis is indicative only and not professional financial advice.
+            Use it as a guide together with your own judgment.
+          </p>
+        </div>
+      </div>
+
+      <!-- Model quality -->
+      <div class="rounded-2xl p-4 sm:p-5 bg-[var(--card)] border border-[var(--border)] shadow-sm">
+        <h2 class="font-semibold text-sm sm:text-base mb-2">Model Quality</h2>
+        <div class="space-y-3 text-xs sm:text-sm text-[var(--muted)]">
+          <div>
+            <p class="font-medium">Expense model (RMSE)</p>
+            {% if rmse_expense %}
+              <p>RM {{ rmse_expense|floatformat:2 }}</p>
+              <p class="text-[10px] leading-snug">
+                Based on the last 20% of your expense history. Lower is better.
+              </p>
+            {% else %}
+              <p>Not enough data to evaluate yet.</p>
+            {% endif %}
+          </div>
+
+          <div>
+            <p class="font-medium">Income model (RMSE)</p>
+            {% if has_income_data and rmse_income %}
+              <p>RM {{ rmse_income|floatformat:2 }}</p>
+              <p class="text-[10px] leading-snug">
+                Based on the last 20% of your income history. Lower is better.
+              </p>
+            {% elif has_income_data %}
+              <p>Not enough income records to evaluate yet.</p>
+            {% else %}
+              <p>No income data to train on yet.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category & Type analytics -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <!-- Category chart -->
+      <div class="rounded-2xl p-4 sm:p-6 bg-[var(--card)] border border-[var(--border)] shadow-2xl">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mb-3">
+          <h2 class="font-semibold text-sm sm:text-base">
+            Expense Breakdown by Category
+          </h2>
+          <span class="text-[10px] text-[var(--muted)]">
+            Last {{ months }} month(s)
+          </span>
+        </div>
+        {% if cat_labels %}
+          <div class="w-full h-60 sm:h-72">
+            <canvas id="categoryChart"></canvas>
+          </div>
+          <p class="mt-2 text-[10px] sm:text-xs text-[var(--muted)]">
+            Focus first on reducing spend in non-essential categories with the largest slices.
+          </p>
+        {% else %}
+          <p class="text-xs sm:text-sm text-[var(--muted)]">
+            No expense data yet to show by category.
+          </p>
+        {% endif %}
+      </div>
+
+      <!-- Transaction type chart -->
+      <div class="rounded-2xl p-4 sm:p-6 bg-[var(--card)] border border-[var(--border)] shadow-2xl">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mb-3">
+          <h2 class="font-semibold text-sm sm:text-base">
+            Transaction Counts by Type
+          </h2>
+          <span class="text-[10px] text-[var(--muted)]">
+            Last {{ months }} month(s)
+          </span>
+        </div>
+        {% if type_labels %}
+          <div class="w-full h-60 sm:h-72">
+            <canvas id="typeChart"></canvas>
+          </div>
+          <p class="mt-2 text-[10px] sm:text-xs text-[var(--muted)]">
+            Many small expenses can add up quickly. If most of your records are
+            <span class="font-semibold">expenses</span>, consider consolidating or
+            cutting frequent non-essential purchases.
+          </p>
+        {% else %}
+          <p class="text-xs sm:text-sm text-[var(--muted)]">
+            No transactions yet to show by type.
+          </p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Expense forecast chart -->
+    <div class="rounded-2xl p-4 sm:p-6 bg-[var(--card)] border border-[var(--border)] shadow-2xl mb-4">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mb-3">
+        <h2 class="font-semibold text-sm sm:text-base">
+          Daily Expenses: History & 30-Day Forecast
+        </h2>
+      </div>
+      <div class="w-full h-64 sm:h-80">
+        <canvas id="advancedExpenseChart"></canvas>
+      </div>
+    </div>
+
+    <!-- JSON data for JS -->
+    {{ hist_labels|json_script:"hist-labels" }}
+    {{ hist_values|json_script:"hist-values" }}
+    {{ future_labels|json_script:"future-labels" }}
+    {{ future_values|json_script:"future-values" }}
+
+    {{ cat_labels|json_script:"cat-labels" }}
+    {{ cat_values|json_script:"cat-values" }}
+
+    {{ type_labels|json_script:"type-labels" }}
+    {{ type_counts|json_script:"type-counts" }}
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        // Expense forecast chart
+        const histLabels   = JSON.parse(document.getElementById('hist-labels').textContent   || '[]');
+        const histValues   = JSON.parse(document.getElementById('hist-values').textContent   || '[]');
+        const futureLabels = JSON.parse(document.getElementById('future-labels').textContent || '[]');
+        const futureValues = JSON.parse(document.getElementById('future-values').textContent || '[]');
+
+        const expCtx = document.getElementById('advancedExpenseChart');
+        if (expCtx) {
+          const allLabels = histLabels.concat(futureLabels);
+          const allValues = histValues.concat(futureValues);
+          const forecastStartIndex = histLabels.length;
+
+          new Chart(expCtx, {
+            type: 'line',
+            data: {
+              labels: allLabels,
+              datasets: [
+                {
+                  label: 'Expenses (RM)',
+                  data: allValues,
+                  tension: 0.35,
+                  fill: false,
+                  borderWidth: 2,
+                  borderColor: '#10b981',
+                  pointRadius: 0,
+                  segment: {
+                    borderDash: ctx => ctx.p0DataIndex >= forecastStartIndex ? [6, 4] : undefined
+                  }
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              interaction: { mode: 'index', intersect: false },
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: function (ctx) {
+                      const v = ctx.raw || 0;
+                      return 'RM ' + Number(v).toFixed(2);
+                    }
+                  }
+                }
+              },
+              scales: {
+                x: {
+                  ticks: { maxRotation: 45, minRotation: 0 },
+                  grid: { display: false }
+                },
+                y: {
+                  beginAtZero: true,
+                  title: { display: true, text: 'Amount (RM)' }
+                }
+              }
+            }
+          });
+        }
+
+        // Category doughnut chart
+        const catLabelsEl = document.getElementById('cat-labels');
+        const catValuesEl = document.getElementById('cat-values');
+        const catCtx      = document.getElementById('categoryChart');
+
+        if (catLabelsEl && catValuesEl && catCtx) {
+          const catLabels = JSON.parse(catLabelsEl.textContent || '[]');
+          const catValues = JSON.parse(catValuesEl.textContent || '[]');
+
+          new Chart(catCtx, {
+            type: 'pie',
+            data: {
+              labels: catLabels,
+              datasets: [{
+                data: catValues
+              }]
+            },
+            options: {
+              cutout: '0%',
+              showLabel: true,
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { position: 'right' },
+                tooltip: {
+                  callbacks: {
+                    label: function (ctx) {
+                      const v = ctx.raw || 0;
+                      return ctx.label + ': RM ' + Number(v).toFixed(2);
+                    }
+                  }
+                }
+              }
+            }
+          });
+        }
+
+        // Transaction type bar chart
+        const typeLabelsEl = document.getElementById('type-labels');
+        const typeCountsEl = document.getElementById('type-counts');
+        const typeCtx      = document.getElementById('typeChart');
+
+        if (typeLabelsEl && typeCountsEl && typeCtx) {
+          const typeLabels = JSON.parse(typeLabelsEl.textContent || '[]');
+          const typeCounts = JSON.parse(typeCountsEl.textContent || '[]');
+
+          new Chart(typeCtx, {
+            type: 'bar',
+            data: {
+              labels: typeLabels,
+              datasets: [{
+                data: typeCounts
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: function (ctx) {
+                      const v = ctx.raw || 0;
+                      return ctx.label + ': ' + v + ' transactions';
+                    }
+                  }
+                }
+              },
+              scales: {
+                x: { grid: { display: false } },
+                y: {
+                  beginAtZero: true,
+                  ticks: { stepSize: 1 }
+                }
+              }
+            }
+          });
+        }
+      });
+    </script>
+
+  {% endif %}
+    <!-- Floating AI finance assistant widget -->
+    <div
+    id="finance-chat-widget"
+    class="fixed bottom-4 right-4 z-40 flex flex-col items-end space-y-2 no-scrollbar"
+    >
+    <!-- Bubble button -->
+    <button
+        id="finance-chat-toggle"
+        type="button"
+        class="flex items-center justify-center w-12 h-12 rounded-full shadow-lg bg-white text-white text-2xl hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        title="Ask AI Finance Assistant"
+    >
+        <!-- Chat icon -->
+        <img
+            src="{% static 'favicon.ico/money-128.png' %}"
+            alt="Money Manager"
+            class="w-12 h-12 sm:w-12 sm:h-12 inline-block shadow-sm rounded-full logo-icon-m-outline"
+            >
+    </button>
+
+    <!-- Chat panel -->
+    <div
+        id="finance-chat-panel"
+        class="hidden w-[90vw] max-w-sm h-[40vh] sm:h-[40vh] rounded-2xl bg-[var(--card)] border border-[var(--border)] shadow-2xl flex flex-col overflow-hidden"
+    >
+        <!-- Header -->
+        <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] bg-[var(--bg)]">
+        <div class="flex items-center gap-2 ">
+            <div class="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center text-white text-lg">
+            <img
+            src="{% static 'favicon.ico/money-128.png' %}"
+            alt="Money Manager"
+            class="w-6 h-6 sm:w-12 sm:h-12 inline-block shadow-sm rounded-full logo-icon-m-outline"
+            >
+            </div>
+            <div>
+            <p class="text-sm font-semibold">AI Finance Assistant</p>
+            <p class="text-[11px] text-[var(--muted)]">Based on your real Money Manager data</p>
+            </div>
+        </div>
+        <button
+            id="finance-chat-close"
+            type="button"
+            class="text-xs px-2 py-1 rounded-full border border-[var(--border)] hover:bg-black/5 dark:hover:bg-white/5"
+        >
+            ✕
+        </button>
+        </div>
+
+        <!-- Messages area -->
+        <div
+        id="finance-chat-messages"
+        class="flex-1 px-3 py-3 space-y-2 overflow-y-auto text-[13px] bg-[var(--bg)] no-scrollbar"
+        >
+        <!-- Initial AI message -->
+        <div class="flex justify-start">
+            <div class="max-w-[80%] rounded-2xl rounded-bl-sm bg-emerald-50 dark:bg-emerald-900/30 px-3 py-2 text-[13px] text-slate-800 dark:text-slate-100">
+            <div class="font-semibold mb-0.5">AI</div>
+            <p class="justify">
+                Hi! I can help you interpret your forecasts, spot overspending, and suggest budgeting ideas.
+                What would you like to know?
+            </p>
+            </div>
+        </div>
+        </div>
+
+        <!-- Input -->
+        <form
+        id="finance-chat-form"
+        class="border-t border-[var(--border)] px-3 py-2 bg-[var(--bg)] flex items-center gap-2"
+        >
+        {% csrf_token %}
+        <input
+            type="text"
+            name="message"
+            id="finance-chat-input"
+            class="flex-1 text-xs sm:text-sm px-3 py-2 rounded-full border border-[var(--border)] bg-[var(--input)] text-[var(--fg)] focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            placeholder="Ask about your spending, forecasts, or budgets..."
+            autocomplete="off"
+        >
+        <button
+            type="submit"
+            class="px-3 py-1.5 rounded-full bg-emerald-500 text-xs sm:text-sm text-black font-semibold hover:bg-emerald-400"
+        >
+            Send
+        </button>
+        </form>
+    </div>
+    </div>
+
+    <script>
+    (function(){
+        const bubble   = document.getElementById('finance-chat-toggle');
+        const panel    = document.getElementById('finance-chat-panel');
+        const closeBtn = document.getElementById('finance-chat-close');
+        const form     = document.getElementById('finance-chat-form');
+        const input    = document.getElementById('finance-chat-input');
+        const messages = document.getElementById('finance-chat-messages');
+
+        function openChat() {
+        panel.classList.remove('hidden');
+        bubble.classList.add('hidden');
+        }
+
+        function closeChat() {
+        panel.classList.add('hidden');
+        bubble.classList.remove('hidden');
+        }
+
+        if (bubble)  bubble.addEventListener('click', openChat);
+        if (closeBtn) closeBtn.addEventListener('click', closeChat);
+
+        // --- Helper: escape HTML safely ---
+        function escapeHtml(str) {
+        return (str || "").replace(/[&<>"']/g, function(ch) {
+            switch (ch) {
+            case '&': return '&amp;';
+            case '<': return '&lt;';
+            case '>': return '&gt;';
+            case '"': return '&quot;';
+            case "'": return '&#39;';
+            }
+        });
+        }
+
+        // --- Helper: format AI response into paragraphs + bullet lists ---
+        function formatAiResponse(text) {
+        const lines = (text || "").split(/\n+/);
+        const fragments = [];
+        let bulletBuffer = [];
+
+        function flushBullets() {
+            if (!bulletBuffer.length) return;
+            const ul = document.createElement('ul');
+            ul.className = "list-disc pl-4 space-y-1 text-[13px]";
+            ul.style.textAlign = "justify";
+            bulletBuffer.forEach(line => {
+            const li = document.createElement('li');
+            li.innerHTML = escapeHtml(line);
+            ul.appendChild(li);
+            });
+            fragments.push(ul);
+            bulletBuffer = [];
+        }
+
+        for (const raw of lines) {
+            const line = (raw || "").trim();
+            if (!line) {
+            // blank line = paragraph break
+            flushBullets();
+            continue;
+            }
+
+            // Detect bullet-like lines: "- x", "* x", "• x", "1. x", "2) x", etc.
+            const bulletMatch = /^(\*|-|•|\d+[.)])\s+(.+)$/.exec(line);
+            if (bulletMatch) {
+            const cleaned = bulletMatch[2].trim();
+            bulletBuffer.push(cleaned);
+            } else {
+            // Normal paragraph
+            flushBullets();
+            const p = document.createElement('p');
+            p.className = "mb-1";
+            p.style.textAlign = "justify";
+            p.innerHTML = escapeHtml(line);
+            fragments.push(p);
+            }
+        }
+        flushBullets();
+        return fragments;
+        }
+
+        function appendMessage(text, who) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'flex ' + (who === 'user' ? 'justify-end' : 'justify-start');
+
+        const bubbleDiv = document.createElement('div');
+        bubbleDiv.className =
+            'max-w-[80%] rounded-2xl px-3 py-2 text-[13px] ' +
+            (who === 'user'
+            ? 'rounded-br-sm bg-emerald-500 text-black'
+            : 'rounded-bl-sm bg-emerald-50 dark:bg-emerald-900/30 text-slate-800 dark:text-slate-100');
+
+        const name = document.createElement('div');
+        name.className = 'font-semibold mb-0.5';
+        name.textContent = (who === 'user') ? 'You' : 'AI';
+
+        bubbleDiv.appendChild(name);
+
+        if (who === 'ai') {
+            // Use fancy formatter: paragraphs + bullets + justify
+            const parts = formatAiResponse(text);
+            if (!parts.length) {
+            const p = document.createElement('p');
+            p.style.textAlign = "justify";
+            p.textContent = text || '';
+            bubbleDiv.appendChild(p);
+            } else {
+            parts.forEach(node => bubbleDiv.appendChild(node));
+            }
+        } else {
+            // Simple user bubble, still justified
+            const p = document.createElement('p');
+            p.style.textAlign = "justify";
+            p.textContent = text || '';
+            bubbleDiv.appendChild(p);
+        }
+
+        wrapper.appendChild(bubbleDiv);
+        messages.appendChild(wrapper);
+        messages.scrollTop = messages.scrollHeight;
+        }
+
+        // --- form submit handler (same as before) ---
+        if (form) {
+        form.addEventListener('submit', async function(e){
+            e.preventDefault();
+            const msg = (input.value || '').trim();
+            if (!msg) return;
+
+            appendMessage(msg, 'user');
+            input.value = '';
+
+            const formData = new FormData();
+            formData.append('message', msg);
+            formData.append('months', '{{ months|default:6 }}');
+            formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+            try {
+            const resp = await fetch('{% url "finance_assistant_api" %}', {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await resp.json();
+            if (data.error) {
+                appendMessage('Error: ' + data.error, 'ai');
+            } else {
+                appendMessage(data.answer, 'ai');
+            }
+            } catch (err) {
+            appendMessage('Network error while contacting the assistant.', 'ai');
+            }
+        });
+        }
+    })();
+    </script>
+
+
+</div>
+
+{% endblock %}

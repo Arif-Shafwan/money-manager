@@ -1,0 +1,334 @@
+{% extends "budget_core/layout/layout.html" %}
+{% load money_tags %}
+{% block title %}Dashboard — Money Manager{% endblock %}
+{% block content %}
+
+<!-- Header -->
+<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6">
+  <div>
+    <h1 class="text-2xl md:text-3xl font-semibold tracking-tight">Dashboard</h1>
+    <p class="text-sm text-[var(--muted)] mt-1">
+      Overview of your money, accounts, and spending trends.
+    </p>
+  </div>
+  <div class="flex items-center gap-2 text-xs text-[var(--muted)]">
+    <span class="inline-flex items-center gap-1 rounded-full border border-[var(--border)] px-3 py-1 bg-[var(--card)]">
+      <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+      <span>Live data for this month</span>
+    </span>
+  </div>
+</div>
+
+<!-- Top summary cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+  <!-- Total balance -->
+  <div class="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg">
+    <div class="flex items-start justify-between p-4">
+      <div>
+        <p class="text-xs uppercase tracking-wide/relaxed opacity-80 font-medium">
+          Current Money
+        </p>
+        <p class="mt-2 text-3xl font-semibold">
+          RM {{ live_total|floatformat:2 }}
+        </p>
+        <p class="mt-1 text-xs opacity-80">
+          Total live balance across all accounts.
+        </p>
+      </div>
+      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 backdrop-blur">
+        💸
+      </div>
+    </div>
+  </div>
+
+  <!-- This month income -->
+  <div class="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm">
+    <div class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-600"></div>
+    <div class="p-4 pt-5">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-xs uppercase tracking-wide text-[var(--muted)] font-medium">
+            This Month Income
+          </p>
+          <p class="mt-2 text-2xl font-semibold text-[var(--fg)]">
+            RM {{ income|floatformat:2 }}
+          </p>
+        </div>
+        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
+          ⬆
+        </div>
+      </div>
+      <p class="mt-2 text-xs text-[var(--muted)]">
+        All income transactions recorded for the current month.
+      </p>
+    </div>
+  </div>
+
+  <!-- This month spent -->
+  <div class="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm">
+    <div class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-rose-500 via-rose-400 to-orange-400"></div>
+    <div class="p-4 pt-5">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-xs uppercase tracking-wide text-[var(--muted)] font-medium">
+            Spent This Month
+          </p>
+          <p class="mt-2 text-2xl font-semibold text-[var(--fg)]">
+            RM {{ spent|floatformat:2 }}
+          </p>
+        </div>
+        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500">
+          ⬇
+        </div>
+      </div>
+      <p class="mt-2 text-xs text-[var(--muted)]">
+        Total of all expense transactions this month.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Accounts cards -->
+<div class="mt-8">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
+      Accounts Live Balance
+    </h2>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+    {% for a in accounts %}
+      <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm p-4 flex flex-col gap-1">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs uppercase tracking-wide text-[var(--muted)]">
+              {{ a.name }}
+            </p>
+            <p class="mt-1 text-lg font-semibold text-[var(--fg)]">
+              RM {{ a.live_balance|floatformat:2 }}
+            </p>
+          </div>
+          <span class="inline-flex items-center rounded-full bg-emerald-500/10 text-emerald-600 text-xs px-2 py-1">
+            Live
+          </span>
+        </div>
+        <p class="mt-1 text-xs text-[var(--muted)]">
+          Opening + income − expenses for this account.
+        </p>
+      </div>
+    {% empty %}
+      <div class="col-span-full text-sm text-[var(--muted)]">
+        No accounts yet. Create one to start tracking balances.
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Daily expenses chart -->
+<div class="mt-10 grid grid-cols-1">
+  <div class="w-full rounded-2xl p-4 bg-[var(--card)] border border-[var(--border)] shadow-sm">
+    <div class="flex items-center justify-between mb-2">
+      <div>
+        <h2 class="font-semibold text-base">Expenses Daily (Current Month)</h2>
+        <p class="text-xs text-[var(--muted)]">
+          Day-by-day breakdown of your spending this month.
+        </p>
+      </div>
+    </div>
+    <div class="w-full h-72">
+      <canvas id="expdaily"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- JSON for daily chart -->
+{{ exp_daily_labels|json_script:"expdaily-labels" }}
+{{ exp_daily_values|json_script:"expdaily-values" }}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const labelsEl = document.getElementById('expdaily-labels');
+    const valuesEl = document.getElementById('expdaily-values');
+
+    if (!labelsEl || !valuesEl) {
+      console.error('JSON script tags not found on page.');
+      return;
+    }
+
+    const labels = JSON.parse(labelsEl.textContent || '[]');
+    const values = JSON.parse(valuesEl.textContent || '[]');
+
+    const ctx = document.getElementById('expdaily').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Expenses (RM)',
+          data: values,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 2,
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (c) => `RM ${Number(c.raw).toFixed(2)}` } }
+        },
+        scales: {
+          x: { title: { display: true, text: 'Day' }, grid: { display: false } },
+          y: { beginAtZero: true, title: { display: true, text: 'Amount (RM)' } }
+        }
+      }
+    });
+  });
+</script>
+
+<!-- Expenses 6-month chart + budgets -->
+<div class="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <!-- 6-month expenses -->
+  <div class="lg:col-span-2 rounded-2xl p-4 bg-[var(--card)] border border-[var(--border)] shadow-sm">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <h2 class="font-semibold text-base">Expenses (Last 6 Months)</h2>
+        <p class="text-xs text-[var(--muted)]">
+          Track your medium-term spending trend.
+        </p>
+      </div>
+      <a href="/transactions/" class="text-xs font-semibold text-sky-600 dark:text-sky-300 hover:underline">
+        View all
+      </a>
+    </div>
+    <div class="w-full h-72">
+      <canvas id="expChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Budgets donut -->
+  <div class="rounded-2xl p-4 bg-[var(--card)] border border-[var(--border)] shadow-sm">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="font-semibold text-base">This Month Budgets</h2>
+    </div>
+
+    {% if budgets %}
+      <div class="w-full h-64 flex items-center justify-center">
+        <canvas id="budgetChart"></canvas>
+      </div>
+      <div class="mt-2 text-xs text-[var(--muted)]">
+        Tip: click legend items to toggle Budget vs Spent.
+      </div>
+
+      <script>
+        document.addEventListener('DOMContentLoaded', function(){
+          var s = getComputedStyle(document.documentElement);
+          var axis = (s.getPropertyValue('--axis') || '#334155').trim();
+
+          var labels = {{ budget_labels|safe }};
+          var budget = {{ budget_values|safe }};
+          var spent  = {{ spent_values|safe }};
+
+          var el = document.getElementById('budgetChart');
+          if(!el) return;
+
+          new Chart(el, {
+            type: 'doughnut',
+            data: {
+              labels: labels,
+              datasets: [
+                { label: 'Budget', data: budget },
+                { label: 'Spent',  data: spent  }
+              ]
+            },
+            options: {
+              cutout: '55%',
+              plugins: {
+                legend: { labels: { color: axis } },
+                tooltip: {
+                  callbacks: {
+                    label: function(ctx){
+                      var v = ctx.raw;
+                      return ' ' + ctx.dataset.label + ': RM ' + (Number(v||0)).toFixed(2);
+                    }
+                  }
+                }
+              }
+            }
+          });
+        });
+      </script>
+    {% else %}
+      <div class="mt-4 text-sm text-[var(--muted)]">
+        No budgets set for this month yet.
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  // "What if" calculator (kept as-is; make sure inputs exist in markup)
+  document.addEventListener('DOMContentLoaded', function(){
+    var base = Number('{{ live_total|floatformat:2 }}');
+    var amtEl = document.getElementById('whatIfAmount');
+    var typeEl = document.getElementById('whatIfType');
+    var outEl  = document.getElementById('whatIfResult');
+    if (!amtEl || !typeEl || !outEl) return;
+
+    function recalc(){
+      var v = Number(amtEl.value || 0);
+      if(isNaN(v)) v = 0;
+      var res = typeEl.value === 'expense' ? (base - v) : (base + v);
+      outEl.textContent = 'RM ' + res.toFixed(2);
+    }
+    document.getElementById('whatIfBtn').addEventListener('click', recalc);
+    amtEl.addEventListener('input', recalc);
+    typeEl.addEventListener('change', recalc);
+  });
+
+  // 6-month line chart
+  document.addEventListener('DOMContentLoaded', function(){
+    var s = getComputedStyle(document.documentElement);
+    var axis = (s.getPropertyValue('--axis') || '#334155').trim();
+    var grid = (s.getPropertyValue('--grid') || 'rgba(148,163,184,.30)').trim();
+
+    var labels = {{ chart_labels|safe }};
+    var data = {{ chart_values|safe }};
+
+    var el = document.getElementById('expChart');
+    if(!el) return;
+
+    new Chart(el, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Expenses',
+          data: data,
+          tension: 0.35
+        }]
+      },
+      options: {
+        plugins: {
+          legend: { labels: { color: axis } }
+        },
+        scales: {
+          x: { ticks: { color: axis }, grid: { color: grid } },
+          y: { ticks: { color: axis }, grid: { color: grid }, beginAtZero: true }
+        }
+      }
+    });
+  });
+
+  function toggleTheme(){
+    const isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    location.reload();
+  }
+</script>
+
+{% endblock %}

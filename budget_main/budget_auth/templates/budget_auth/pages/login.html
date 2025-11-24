@@ -1,0 +1,77 @@
+{% extends "budget_core/layout/layout.html" %}
+{% load money_tags %}
+{% load static %}
+{% block title %}Login — Money Manager{% endblock %}
+{% block content %}
+
+<div class="max-w-md mx-auto">
+  <!-- Header -->
+  <div class="mb-4 text-center sm:text-left">
+    <h1 class="text-2xl font-semibold">Login</h1>
+    <p class="mt-1 text-xs sm:text-sm text-[var(--muted)]">
+      Sign in to access your Money Manager dashboard.
+    </p>
+  </div>
+
+  <!-- Card -->
+  <div class="rounded-2xl p-4 sm:p-6 bg-[var(--card)] border border-[var(--border)] shadow-sm">
+    <form method="post" class="space-y-4">
+      {% csrf_token %}
+
+      <!-- Username -->
+      <div>
+        <label for="username" class="block text-xs font-medium mb-1">
+          Username
+        </label>
+        <input
+          type="text"
+          id="username"
+          name="username"
+          placeholder="Your username"
+          class="w-full p-2 text-sm bg-[var(--input)] border border-[var(--border)] text-[var(--fg)] rounded-lg
+                 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          required
+        >
+      </div>
+
+      <!-- Password -->
+      <div>
+        <label for="password" class="block text-xs font-medium mb-1">
+          Password
+        </label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          placeholder="********"
+          class="w-full p-2 text-sm bg-[var(--input)] border border-[var(--border)] text-[var(--fg)] rounded-lg
+                 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          required
+        >
+      </div>
+
+      <!-- Actions -->
+      <div class="pt-2 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+        <!-- Sign in -->
+        <button
+          type="submit"
+          class="w-full sm:w-auto px-4 py-2 rounded-lg bg-emerald-500 text-black font-semibold text-sm
+                 hover:bg-emerald-400 transition"
+        >
+          Sign in
+        </button>
+
+        <!-- Sign up -->
+        <a
+          href="{% url 'signup' %}"
+          class="w-full sm:w-auto px-4 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--fg)] text-center
+                 hover:bg-black/5 dark:hover:bg-white/5 transition"
+        >
+          Sign up
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
